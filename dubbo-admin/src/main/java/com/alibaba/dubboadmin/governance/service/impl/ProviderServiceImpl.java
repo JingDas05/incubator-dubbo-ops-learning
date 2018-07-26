@@ -39,7 +39,6 @@ import org.springframework.stereotype.Component;
 
 /**
  * IbatisProviderService
- *
  */
 @Component
 public class ProviderServiceImpl extends AbstractService implements ProviderService {
@@ -124,7 +123,6 @@ public class ProviderServiceImpl extends AbstractService implements ProviderServ
             oldProvider.setEnabled(false);
             updateProvider(oldProvider);
         }
-
     }
 
     public void doublingProvider(Long id) {
@@ -365,9 +363,13 @@ public class ProviderServiceImpl extends AbstractService implements ProviderServ
 
     public List<String> findApplications() {
         List<String> ret = new ArrayList<String>();
+        // 亨元模式
+        // key: com.alibaba.dubbo.demo.DemoService2 com.alibaba.dubbo.demo.DemoService
+        // value:  Map<Long, URL> 其中 Long为版本号， URL为服务地址
         ConcurrentMap<String, Map<Long, URL>> providerUrls = getRegistryCache().get(Constants.PROVIDERS_CATEGORY);
         if (providerUrls == null) return ret;
 
+        // 根据服务url 获取 application
         for (Map.Entry<String, Map<Long, URL>> e1 : providerUrls.entrySet()) {
             Map<Long, URL> value = e1.getValue();
             for (Map.Entry<Long, URL> e2 : value.entrySet()) {

@@ -30,9 +30,12 @@ limitations under the License.
 
     <dubbo:protocol name="dubbo" port="${dubbo.protocol.port}" heartbeat="180000"/>
 
+    <!--暴露服务-->
     <dubbo:service id="registryServiceConfig" interface="com.alibaba.dubbo.registry.RegistryService"
                    ref="registryService" registry="N/A" ondisconnect="disconnect" callbacks="1000">
         <dubbo:method name="subscribe">
+            <!--参数是否为callback接口，如果为callback，服务提供方将生成反向代理，可以从服务提供方反向调用消费方，通常用于事件推送.-->
+            <!--index 从0开始-->
             <dubbo:argument index="1" callback="true"/>
         </dubbo:method>
         <dubbo:method name="unsubscribe">

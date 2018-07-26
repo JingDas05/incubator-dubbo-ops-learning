@@ -53,6 +53,7 @@ public class SimpleRegistryService extends AbstractRegistry {
         return true;
     }
 
+    // 寻找匹配的 已注册的服务列表
     public List<URL> lookup(URL url) {
         List<URL> urls = new ArrayList<URL>();
         for (URL u : getRegistered()) {
@@ -63,18 +64,23 @@ public class SimpleRegistryService extends AbstractRegistry {
         return urls;
     }
 
+    // 注册服务
     public void register(URL url) {
+        // client 为 host:post
         String client = RpcContext.getContext().getRemoteAddressString();
         Set<URL> urls = remoteRegistered.get(client);
+        // 如果为空初始化，之后置入 url
         if (urls == null) {
             remoteRegistered.putIfAbsent(client, new ConcurrentHashSet<URL>());
             urls = remoteRegistered.get(client);
         }
         urls.add(url);
         super.register(url);
+        // 通知订阅
         registered(url);
     }
 
+    // 取消注册服务
     public void unregister(URL url) {
         String client = RpcContext.getContext().getRemoteAddressString();
         Set<URL> urls = remoteRegistered.get(client);
@@ -85,6 +91,7 @@ public class SimpleRegistryService extends AbstractRegistry {
         unregistered(url);
     }
 
+    // 订阅服务
     public void subscribe(URL url, NotifyListener listener) {
         if (getUrl().getPort() == 0) {
             URL registryUrl = RpcContext.getContext().getUrl();
@@ -110,6 +117,7 @@ public class SimpleRegistryService extends AbstractRegistry {
         subscribed(url, listener);
     }
 
+    // 取消订阅，去除listener
     public void unsubscribe(URL url, NotifyListener listener) {
         if (!Constants.ANY_VALUE.equals(url.getServiceInterface())
                 && url.getParameter(Constants.REGISTER_KEY, true)) {
@@ -125,10 +133,12 @@ public class SimpleRegistryService extends AbstractRegistry {
         }
     }
 
+    // 注册 通知订阅
     protected void registered(URL url) {
         for (Map.Entry<URL, Set<NotifyListener>> entry : getSubscribed().entrySet()) {
             URL key = entry.getKey();
             if (UrlUtils.isMatch(key, url)) {
+                // 获取已注册的和url提供相同服务的 列表
                 List<URL> list = lookup(key);
                 for (NotifyListener listener : entry.getValue()) {
                     listener.notify(list);
@@ -137,6 +147,7 @@ public class SimpleRegistryService extends AbstractRegistry {
         }
     }
 
+    // 取消注册 通知订阅
     protected void unregistered(URL url) {
         for (Map.Entry<URL, Set<NotifyListener>> entry : getSubscribed().entrySet()) {
             URL key = entry.getKey();
@@ -149,15 +160,20 @@ public class SimpleRegistryService extends AbstractRegistry {
         }
     }
 
+
     protected void subscribed(final URL url, final NotifyListener listener) {
+        // 开启新线程处理，如果 interface = *,UrlUtils.isMatch()会返回true,所以下面要根据接口，获取map
         if (Constants.ANY_VALUE.equals(url.getServiceInterface())) {
             new Thread(new Runnable() {
                 public void run() {
+                    // interface=com.alibaba.dubbo.demo.DemoService， key 是 interface
+                    // 获取提供相同服务的所有接口
                     Map<String, List<URL>> map = new HashMap<String, List<URL>>();
                     for (URL u : getRegistered()) {
                         if (UrlUtils.isMatch(url, u)) {
                             String service = u.getServiceInterface();
                             List<URL> list = map.get(service);
+                            // 等于空就初始化
                             if (list == null) {
                                 list = new ArrayList<URL>();
                                 map.put(service, list);
@@ -165,6 +181,7 @@ public class SimpleRegistryService extends AbstractRegistry {
                             list.add(u);
                         }
                     }
+                    // 对于所有的方法都进行通知
                     for (List<URL> list : map.values()) {
                         try {
                             listener.notify(list);

@@ -45,6 +45,7 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
 
     private static final Logger logger = LoggerFactory.getLogger(RegistryServerSync.class);
 
+    // admin://172.24.224.1?category=providers,consumers,routers,configurators&check=false&classifier=*&enabled=*&group=*&interface=*&version=*
     private static final URL SUBSCRIBE = new URL(Constants.ADMIN_PROTOCOL, NetUtils.getLocalHost(), 0, "",
             Constants.INTERFACE_KEY, Constants.ANY_VALUE,
             Constants.GROUP_KEY, Constants.ANY_VALUE,
@@ -57,6 +58,7 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
             Constants.ENABLED_KEY, Constants.ANY_VALUE,
             Constants.CHECK_KEY, String.valueOf(false));
 
+    // 这个就是那个版本号
     private static final AtomicLong ID = new AtomicLong();
 
     /**
@@ -66,7 +68,7 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
 
     // ConcurrentMap<category, ConcurrentMap<servicename, Map<Long, URL>>>
     private final ConcurrentMap<String, ConcurrentMap<String, Map<Long, URL>>>
-        registryCache = new ConcurrentHashMap<String, ConcurrentMap<String, Map<Long, URL>>>();
+            registryCache = new ConcurrentHashMap<String, ConcurrentMap<String, Map<Long, URL>>>();
     @Autowired
     private RegistryService registryService;
 
@@ -74,8 +76,12 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
         return registryCache;
     }
 
+    // admin://172.24.224.1?category=providers,consumers,routers,configurators&check=false&classifier=*&enabled=*&group=*&interface=*&version=*
+    // 相当于订阅了所有的服务
     public void afterPropertiesSet() throws Exception {
         logger.info("Init Dubbo Admin Sync Cache...");
+        // 这步订阅很重要，会监听zookeeper所有的变动，之后更新本地缓存registryCache
+        // 本地用的是 ZookeeperRegistry，实际调用 ZookeeperRegistry doSubscribe()方法，之后传入注册监听器，本例就是监听器
         registryService.subscribe(SUBSCRIBE, this);
     }
 
@@ -93,7 +99,10 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
         String interfaceName = null;
         for (URL url : urls) {
             String category = url.getParameter(Constants.CATEGORY_KEY, Constants.PROVIDERS_CATEGORY);
-            if (Constants.EMPTY_PROTOCOL.equalsIgnoreCase(url.getProtocol())) { // NOTE: group and version in empty protocol is *
+            // 如果是空协议，移除掉 service
+            if (Constants.EMPTY_PROTOCOL.equalsIgnoreCase(url.getProtocol())) {
+                // NOTE: group and version in empty protocol is *
+                // 分类包括 providers consumers 等，默认是 providers
                 ConcurrentMap<String, Map<Long, URL>> services = registryCache.get(category);
                 if (services != null) {
                     String group = url.getParameter(Constants.GROUP_KEY);
@@ -113,6 +122,7 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
                     }
                 }
             } else {
+                // 获取接口名字
                 if (StringUtils.isEmpty(interfaceName)) {
                     interfaceName = url.getServiceInterface();
                 }
@@ -121,6 +131,7 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
                     services = new HashMap<String, Map<Long, URL>>();
                     categories.put(category, services);
                 }
+                // 方法全路径名
                 String service = url.getServiceKey();
                 Map<Long, URL> ids = services.get(service);
                 if (ids == null) {
@@ -129,6 +140,7 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
                 }
 
                 // Make sure we use the same ID for the same URL
+                // 确保相同的url使用相同的ID
                 if (URL_IDS_MAPPER.containsKey(url.toFullString())) {
                     ids.put(URL_IDS_MAPPER.get(url.toFullString()), url);
                 } else {
@@ -143,11 +155,14 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
         }
         for (Map.Entry<String, Map<String, Map<Long, URL>>> categoryEntry : categories.entrySet()) {
             String category = categoryEntry.getKey();
+            // 根据分类获取缓存， key:      value:
             ConcurrentMap<String, Map<Long, URL>> services = registryCache.get(category);
             if (services == null) {
                 services = new ConcurrentHashMap<String, Map<Long, URL>>();
                 registryCache.put(category, services);
-            } else {// Fix map can not be cleared when service is unregistered: when a unique “group/service:version” service is unregistered, but we still have the same services with different version or group, so empty protocols can not be invoked.
+            } else {
+                // Fix map can not be cleared when service is unregistered: when a unique “group/service:version” service is unregistered,
+                // but we still have the same services with different version or group, so empty protocols can not be invoked.
                 Set<String> keys = new HashSet<String>(services.keySet());
                 for (String key : keys) {
                     if (Tool.getInterface(key).equals(interfaceName) && !categoryEntry.getValue().entrySet().contains(key)) {
