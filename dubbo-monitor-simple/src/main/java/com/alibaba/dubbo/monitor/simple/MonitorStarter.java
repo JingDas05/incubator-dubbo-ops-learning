@@ -21,7 +21,11 @@ import com.alibaba.dubbo.container.Main;
 
 public class MonitorStarter {
     public static void main(String[] args) {
+
         System.setProperty(Constants.DUBBO_PROPERTIES_KEY, "conf/dubbo.properties");
+        // 手动设置usr.home，这个会在配置文件中用到 dubbo.jetty.directory=${user.home}/monitor
+        // 没有图表的原因：程序不会自动创建monitor文件夹，需要手动创建
+        System.setProperty("usr.home", "D:\\wusi");
         Main.main(args);
     }
 }

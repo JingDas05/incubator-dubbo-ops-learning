@@ -90,6 +90,25 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
     }
 
     // Notification of of any service with any type (override、subcribe、route、provider) is full.
+    // 有新的注册信息
+    // 对于 demoProvider
+    // 如果服务注册，收到的通知消息如下：
+//    dubbo://192.168.73.1:20880/com.alibaba.dubbo.demo.DemoService?accepts=0&anyhost=true&application=demoProvider&
+//    buffer=8192&dispatcher=all&dubbo=2.0.0&generic=false&interface=com.alibaba.dubbo.demo.DemoService&iothreads=9&
+//    methods=sayHello
+//    &payload=88388608&pid=19296&register=true&serialization=hessian2&side=provider&threadpool=fixed&threads=100&timeout=30000&timestamp=1533088098886
+//
+//    dubbo://192.168.73.1:20880/com.alibaba.dubbo.demo.DemoService2?accepts=0&anyhost=true&application=demoProvider&
+//    buffer=8192&dispatcher=all&dubbo=2.0.0&generic=false&interface=com.alibaba.dubbo.demo.DemoService2&iothreads=9&
+//    methods=sayHello2,anotherSayHello2&
+//    payload=88388608&pid=19296&register=true&serialization=hessian2&side=provider&threadpool=fixed&threads=100&timeout=30000&timestamp=1533088108861
+
+      // 如果注册的服务停了，收到的通知消息如下：
+//    empty://172.24.224.1/com.alibaba.dubbo.demo.DemoService?category=providers&
+//    check=false&classifier=*&enabled=*&group=*&interface=com.alibaba.dubbo.demo.DemoService&version=*
+//
+//    empty://172.24.224.1/com.alibaba.dubbo.demo.DemoService2?category=providers&
+//    check=false&classifier=*&enabled=*&group=*&interface=com.alibaba.dubbo.demo.DemoService2&version=*
     public void notify(List<URL> urls) {
         if (urls == null || urls.isEmpty()) {
             return;
@@ -98,8 +117,9 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
         final Map<String, Map<String, Map<Long, URL>>> categories = new HashMap<String, Map<String, Map<Long, URL>>>();
         String interfaceName = null;
         for (URL url : urls) {
+            // 获取分类，默认是 providers
             String category = url.getParameter(Constants.CATEGORY_KEY, Constants.PROVIDERS_CATEGORY);
-            // 如果是空协议，移除掉 service
+            // 如果是空协议，移除掉 service 服务，empty://开头的
             if (Constants.EMPTY_PROTOCOL.equalsIgnoreCase(url.getProtocol())) {
                 // NOTE: group and version in empty protocol is *
                 // 分类包括 providers consumers 等，默认是 providers
@@ -107,10 +127,11 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
                 if (services != null) {
                     String group = url.getParameter(Constants.GROUP_KEY);
                     String version = url.getParameter(Constants.VERSION_KEY);
-                    // NOTE: group and version in empty protocol is *
+                    // NOTE: group and version in empty protocol is *，如果 group 和 version都不等于 *，就移除
                     if (!Constants.ANY_VALUE.equals(group) && !Constants.ANY_VALUE.equals(version)) {
                         services.remove(url.getServiceKey());
                     } else {
+                        // 如果是一个服务，移除掉（一致的标准是 group和version和Interface 相同）
                         for (Map.Entry<String, Map<Long, URL>> serviceEntry : services.entrySet()) {
                             String service = serviceEntry.getKey();
                             if (Tool.getInterface(service).equals(url.getServiceInterface())
@@ -127,25 +148,28 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
                     interfaceName = url.getServiceInterface();
                 }
                 Map<String, Map<Long, URL>> services = categories.get(category);
+                // 如果为空 初始化
                 if (services == null) {
                     services = new HashMap<String, Map<Long, URL>>();
                     categories.put(category, services);
                 }
                 // 方法全路径名
                 String service = url.getServiceKey();
+                // 如果为空 初始化
                 Map<Long, URL> ids = services.get(service);
                 if (ids == null) {
                     ids = new HashMap<Long, URL>();
                     services.put(service, ids);
                 }
-
                 // Make sure we use the same ID for the same URL
                 // 确保相同的url使用相同的ID
+                // 核心代码
                 if (URL_IDS_MAPPER.containsKey(url.toFullString())) {
                     ids.put(URL_IDS_MAPPER.get(url.toFullString()), url);
                 } else {
                     long currentId = ID.incrementAndGet();
                     ids.put(currentId, url);
+                    // 存储 url.toFullString() 与id 的对应关系
                     URL_IDS_MAPPER.putIfAbsent(url.toFullString(), currentId);
                 }
             }
@@ -153,6 +177,7 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
         if (categories.size() == 0) {
             return;
         }
+        // 添加到 registryCache 中
         for (Map.Entry<String, Map<String, Map<Long, URL>>> categoryEntry : categories.entrySet()) {
             String category = categoryEntry.getKey();
             // 根据分类获取缓存， key:      value:

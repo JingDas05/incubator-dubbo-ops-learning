@@ -75,7 +75,6 @@ import org.springframework.web.bind.annotation.RequestMethod;
  * GET /services/$service/providers/$id/disable, diable<br>
  * GET /services/$service/providers/$id/reconnect, reconnect<br>
  * GET /services/$service/providers/$id/recover, recover<br>
- *
  */
 @Controller
 @RequestMapping("/governance/providers")
@@ -88,7 +87,6 @@ public class ProvidersController extends BaseController {
     private OverrideService overrideService;
 
 
-
     @RequestMapping("")
     public String index(HttpServletRequest request, HttpServletResponse response, Model model) {
 
@@ -99,13 +97,15 @@ public class ProvidersController extends BaseController {
         String separators = "....";
 
         List<Provider> providers = null;
-        BindingAwareModelMap newModel = (BindingAwareModelMap)model;
-        String service = (String)newModel.get("service");
-        String address = (String)newModel.get("address");
-        String application = (String)newModel.get("app");
+        BindingAwareModelMap newModel = (BindingAwareModelMap) model;
+        String service = (String) newModel.get("service");
+        String address = (String) newModel.get("address");
+        String application = (String) newModel.get("app");
 
         // service
+        // demoProvider 中是 com.alibaba.dubbo.demo.DemoService 或者 com.alibaba.dubbo.demo.DemoService2
         if (service != null && service.length() > 0) {
+            // 获取服务的所有的提供者
             providers = providerService.findByService(service);
 
             value = service + separators + request.getRequestURI();
@@ -140,8 +140,8 @@ public class ProvidersController extends BaseController {
     }
 
     /**
-     *
      * Calculate the application list corresponding to each service, to facilitate the "repeat" prompt on service page
+     *
      * @param providers app services
      */
     private Map<String, Set<String>> getServiceAppMap(List<Provider> providers) {
@@ -225,9 +225,9 @@ public class ProvidersController extends BaseController {
     @RequestMapping("/add")
     public String add(HttpServletRequest request, HttpServletResponse response, Model model) {
         prepare(request, response, model, "add", "providers");
-        BindingAwareModelMap newModel = (BindingAwareModelMap)model;
-        Long id = (Long)newModel.get("id");
-        String service = (String)newModel.get("service");
+        BindingAwareModelMap newModel = (BindingAwareModelMap) model;
+        Long id = (Long) newModel.get("id");
+        String service = (String) newModel.get("service");
         if (service == null) {
             List<String> serviceList = Tool.sortSimpleName(new ArrayList<String>(providerService.findServices()));
             model.addAttribute("serviceList", serviceList);
@@ -249,8 +249,8 @@ public class ProvidersController extends BaseController {
     }
 
     @RequestMapping("/{id}/edit")
-    public String edit(@PathVariable("id") Long id,  HttpServletRequest request, HttpServletResponse response,  Model model) {
-        prepare(request, response, model,"edit", "providers");
+    public String edit(@PathVariable("id") Long id, HttpServletRequest request, HttpServletResponse response, Model model) {
+        prepare(request, response, model, "edit", "providers");
         Provider provider = providerService.findProvider(id);
         if (provider != null && provider.isDynamic()) {
             List<Override> overrides = overrideService.findByServiceAndAddress(provider.getService(), provider.getAddress());
@@ -260,13 +260,13 @@ public class ProvidersController extends BaseController {
         return "governance/screen/providers/edit";
     }
 
-    @RequestMapping(value =  "/create", method = RequestMethod.POST)  //post
+    @RequestMapping(value = "/create", method = RequestMethod.POST)  //post
     public String create(@ModelAttribute Provider provider, HttpServletRequest request, HttpServletResponse response, Model model) {
-        prepare(request, response, model,"create" ,"providers");
+        prepare(request, response, model, "create", "providers");
         boolean success = true;
         String service = provider.getService();
         if (service == null) {
-            service = (String)((BindingAwareModelMap)model).get("service");
+            service = (String) ((BindingAwareModelMap) model).get("service");
             provider.setService(service);
         }
         if (!super.currentUser.hasServicePrivilege(service)) {
@@ -421,7 +421,7 @@ public class ProvidersController extends BaseController {
     }
 
     @RequestMapping("/{ids}/disable")
-    public String disable(@PathVariable("ids") Long[] ids, HttpServletRequest request, HttpServletResponse response,  Model model) {
+    public String disable(@PathVariable("ids") Long[] ids, HttpServletRequest request, HttpServletResponse response, Model model) {
         prepare(request, response, model, "disable", "providers");
         boolean success = true;
         for (Long id : ids) {
@@ -449,8 +449,8 @@ public class ProvidersController extends BaseController {
     }
 
     @RequestMapping("/{ids}/doubling")
-    public String doubling(@PathVariable("ids") Long[] ids, HttpServletRequest request, HttpServletResponse response,  Model model) {
-        prepare(request, response, model, "doubling","providers");
+    public String doubling(@PathVariable("ids") Long[] ids, HttpServletRequest request, HttpServletResponse response, Model model) {
+        prepare(request, response, model, "doubling", "providers");
         boolean success = true;
         for (Long id : ids) {
             Provider provider = providerService.findProvider(id);
@@ -478,7 +478,7 @@ public class ProvidersController extends BaseController {
 
     @RequestMapping("/{ids}/halving")
     public String halving(@PathVariable("ids") Long[] ids, HttpServletRequest request, HttpServletResponse response, Model model) {
-        prepare(request, response, model, "halving","providers");
+        prepare(request, response, model, "halving", "providers");
         boolean success = true;
         for (Long id : ids) {
             Provider provider = providerService.findProvider(id);
