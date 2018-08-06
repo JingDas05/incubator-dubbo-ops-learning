@@ -77,6 +77,7 @@ public class SimpleMonitorService implements MonitorService {
 
     public SimpleMonitorService() {
         queue = new LinkedBlockingQueue<URL>(Integer.parseInt(ConfigUtils.getProperty("dubbo.monitor.queue", "100000")));
+        // 因为 write()方法中的 queue线程阻塞，所以需要新开线程去执行消费
         writeThread = new Thread(new Runnable() {
             public void run() {
                 while (running) {
@@ -189,7 +190,9 @@ public class SimpleMonitorService implements MonitorService {
         }
     }
 
+    // 将监控数据写入到文件中，写入的逻辑很不错，值得学习
     private void write() throws Exception {
+        // 消费监控数据，
         URL statistics = queue.take();
         if (POISON_PROTOCOL.equals(statistics.getProtocol())) {
             return;
@@ -252,6 +255,7 @@ public class SimpleMonitorService implements MonitorService {
         }
     }
 
+    // 从文件中读取数据，之后画图存在 \monitor\charts\日期\接口路径名\方法名\图片
     private void draw() {
         File rootDir = new File(statisticsDirectory);
         if (!rootDir.exists()) {
@@ -385,7 +389,19 @@ public class SimpleMonitorService implements MonitorService {
         collect(statistics);
     }
 
+    // 核心方法，各服务（主要是提供者 provider）远程调用的接口，提供者角色
+
+    // eg1
+    // count://192.168.73.1:20881/com.alibaba.dubbo.demo.DemoService/sayHello?application=demoProvider&concurrent=0&
+    // consumer=192.168.73.1&dubbo=2.0.0&elapsed=27&failure=0&group=&input=84925&interface=com.alibaba.dubbo.demo.DemoService&
+    // max.concurrent=1&max.elapsed=1&max.input=215&max.output=0&method=sayHello&output=0&success=395&timestamp=1533547098311&version=
+
+    // eg2
+    // count://192.168.73.1:20881/com.alibaba.dubbo.demo.DemoService/sayHello?application=demoProvider&concurrent=0&
+    // consumer=192.168.73.1&dubbo=2.0.0&elapsed=49&failure=0&group=&input=263375&interface=com.alibaba.dubbo.demo.DemoService&
+    // max.concurrent=1&max.elapsed=1&max.input=215&max.output=0&method=sayHello&output=0&success=1225&timestamp=1533547347468&version=
     public void collect(URL statistics) {
+        // 将数据加入掉消息队列中
         queue.offer(statistics);
         if (logger.isInfoEnabled()) {
             logger.info("collect statistics: " + statistics);
