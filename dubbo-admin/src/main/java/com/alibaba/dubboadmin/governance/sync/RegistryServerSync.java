@@ -44,8 +44,16 @@ import org.springframework.stereotype.Component;
 public class RegistryServerSync implements InitializingBean, DisposableBean, NotifyListener {
 
     private static final Logger logger = LoggerFactory.getLogger(RegistryServerSync.class);
-
-    // admin://172.24.224.1?category=providers,consumers,routers,configurators&check=false&classifier=*&enabled=*&group=*&interface=*&version=*
+    // ConcurrentMap<category, ConcurrentMap<servicename, Map<Long, URL>>> 存储所有的注册信息
+    private final ConcurrentMap<String, ConcurrentMap<String, Map<Long, URL>>>
+            registryCache = new ConcurrentHashMap<String, ConcurrentMap<String, Map<Long, URL>>>();
+    // bean生成后调用的方法
+    public void afterPropertiesSet() throws Exception {
+        logger.info("Init Dubbo Admin Sync Cache...");
+        // 这步订阅很重要，会监听zookeeper所有的变动，之后更新本地缓存registryCache
+        // 本地registryService服务实际用的是 ZookeeperRegistry，实际调用 ZookeeperRegistry的doSubscribe()方法，之后传入注册监听器，本例就是监听器
+        registryService.subscribe(SUBSCRIBE, this);
+    }
     private static final URL SUBSCRIBE = new URL(Constants.ADMIN_PROTOCOL, NetUtils.getLocalHost(), 0, "",
             Constants.INTERFACE_KEY, Constants.ANY_VALUE,
             Constants.GROUP_KEY, Constants.ANY_VALUE,
@@ -58,57 +66,7 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
             Constants.ENABLED_KEY, Constants.ANY_VALUE,
             Constants.CHECK_KEY, String.valueOf(false));
 
-    // 这个就是那个版本号
-    private static final AtomicLong ID = new AtomicLong();
-
-    /**
-     * Make sure ID never changed when the same url notified many times
-     */
-    private final ConcurrentHashMap<String, Long> URL_IDS_MAPPER = new ConcurrentHashMap<String, Long>();
-
-    // ConcurrentMap<category, ConcurrentMap<servicename, Map<Long, URL>>>
-    private final ConcurrentMap<String, ConcurrentMap<String, Map<Long, URL>>>
-            registryCache = new ConcurrentHashMap<String, ConcurrentMap<String, Map<Long, URL>>>();
-    @Autowired
-    private RegistryService registryService;
-
-    public ConcurrentMap<String, ConcurrentMap<String, Map<Long, URL>>> getRegistryCache() {
-        return registryCache;
-    }
-
-    // admin://172.24.224.1?category=providers,consumers,routers,configurators&check=false&classifier=*&enabled=*&group=*&interface=*&version=*
-    // 相当于订阅了所有的服务
-    public void afterPropertiesSet() throws Exception {
-        logger.info("Init Dubbo Admin Sync Cache...");
-        // 这步订阅很重要，会监听zookeeper所有的变动，之后更新本地缓存registryCache
-        // 本地用的是 ZookeeperRegistry，实际调用 ZookeeperRegistry doSubscribe()方法，之后传入注册监听器，本例就是监听器
-        registryService.subscribe(SUBSCRIBE, this);
-    }
-
-    public void destroy() throws Exception {
-        registryService.unsubscribe(SUBSCRIBE, this);
-    }
-
-    // Notification of of any service with any type (override、subcribe、route、provider) is full.
-    // 有新的注册信息
-    // 对于 demoProvider
-    // 如果服务注册，收到的通知消息如下：
-//    dubbo://192.168.73.1:20880/com.alibaba.dubbo.demo.DemoService?accepts=0&anyhost=true&application=demoProvider&
-//    buffer=8192&dispatcher=all&dubbo=2.0.0&generic=false&interface=com.alibaba.dubbo.demo.DemoService&iothreads=9&
-//    methods=sayHello
-//    &payload=88388608&pid=19296&register=true&serialization=hessian2&side=provider&threadpool=fixed&threads=100&timeout=30000&timestamp=1533088098886
-//
-//    dubbo://192.168.73.1:20880/com.alibaba.dubbo.demo.DemoService2?accepts=0&anyhost=true&application=demoProvider&
-//    buffer=8192&dispatcher=all&dubbo=2.0.0&generic=false&interface=com.alibaba.dubbo.demo.DemoService2&iothreads=9&
-//    methods=sayHello2,anotherSayHello2&
-//    payload=88388608&pid=19296&register=true&serialization=hessian2&side=provider&threadpool=fixed&threads=100&timeout=30000&timestamp=1533088108861
-
-      // 如果注册的服务停了，收到的通知消息如下：
-//    empty://172.24.224.1/com.alibaba.dubbo.demo.DemoService?category=providers&
-//    check=false&classifier=*&enabled=*&group=*&interface=com.alibaba.dubbo.demo.DemoService&version=*
-//
-//    empty://172.24.224.1/com.alibaba.dubbo.demo.DemoService2?category=providers&
-//    check=false&classifier=*&enabled=*&group=*&interface=com.alibaba.dubbo.demo.DemoService2&version=*
+    //实现NotifyListener 的 notify方法 当有新的URL注册到注册中心的时候，回调下面的接口，回调参数是注册的URL
     public void notify(List<URL> urls) {
         if (urls == null || urls.isEmpty()) {
             return;
@@ -198,5 +156,44 @@ public class RegistryServerSync implements InitializingBean, DisposableBean, Not
             services.putAll(categoryEntry.getValue());
         }
     }
+    // 这个就是那个版本号
+    private static final AtomicLong ID = new AtomicLong();
+
+    /**
+     * Make sure ID never changed when the same url notified many times
+     */
+    private final ConcurrentHashMap<String, Long> URL_IDS_MAPPER = new ConcurrentHashMap<String, Long>();
+
+    @Autowired
+    private RegistryService registryService;
+
+    public ConcurrentMap<String, ConcurrentMap<String, Map<Long, URL>>> getRegistryCache() {
+        return registryCache;
+    }
+
+    public void destroy() throws Exception {
+        registryService.unsubscribe(SUBSCRIBE, this);
+    }
+
+    // Notification of of any service with any type (override、subcribe、route、provider) is full.
+    // 有新的注册信息
+    // 对于 demoProvider
+    // 如果服务注册，收到的通知消息如下：
+//    dubbo://192.168.73.1:20880/com.alibaba.dubbo.demo.DemoService?accepts=0&anyhost=true&application=demoProvider&
+//    buffer=8192&dispatcher=all&dubbo=2.0.0&generic=false&interface=com.alibaba.dubbo.demo.DemoService&iothreads=9&
+//    methods=sayHello
+//    &payload=88388608&pid=19296&register=true&serialization=hessian2&side=provider&threadpool=fixed&threads=100&timeout=30000&timestamp=1533088098886
+//
+//    dubbo://192.168.73.1:20880/com.alibaba.dubbo.demo.DemoService2?accepts=0&anyhost=true&application=demoProvider&
+//    buffer=8192&dispatcher=all&dubbo=2.0.0&generic=false&interface=com.alibaba.dubbo.demo.DemoService2&iothreads=9&
+//    methods=sayHello2,anotherSayHello2&
+//    payload=88388608&pid=19296&register=true&serialization=hessian2&side=provider&threadpool=fixed&threads=100&timeout=30000&timestamp=1533088108861
+
+      // 如果注册的服务停了，收到的通知消息如下：
+//    empty://172.24.224.1/com.alibaba.dubbo.demo.DemoService?category=providers&
+//    check=false&classifier=*&enabled=*&group=*&interface=com.alibaba.dubbo.demo.DemoService&version=*
+//
+//    empty://172.24.224.1/com.alibaba.dubbo.demo.DemoService2?category=providers&
+//    check=false&classifier=*&enabled=*&group=*&interface=com.alibaba.dubbo.demo.DemoService2&version=*
 }
     

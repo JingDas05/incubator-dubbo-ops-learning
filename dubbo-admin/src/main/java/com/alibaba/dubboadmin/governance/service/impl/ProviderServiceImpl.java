@@ -363,13 +363,12 @@ public class ProviderServiceImpl extends AbstractService implements ProviderServ
 
     public List<String> findApplications() {
         List<String> ret = new ArrayList<String>();
-        // 亨元模式
+        // 亨元模式，获取所有的服务提供者
         // key: com.alibaba.dubbo.demo.DemoService2 com.alibaba.dubbo.demo.DemoService
         // value:  Map<Long, URL> 其中 Long为版本号， URL为服务地址
         ConcurrentMap<String, Map<Long, URL>> providerUrls = getRegistryCache().get(Constants.PROVIDERS_CATEGORY);
         if (providerUrls == null) return ret;
-
-        // 根据服务url 获取 application
+        // 遍历所有的服务提供者，根据服务url获取application列表
         for (Map.Entry<String, Map<Long, URL>> e1 : providerUrls.entrySet()) {
             Map<Long, URL> value = e1.getValue();
             for (Map.Entry<Long, URL> e2 : value.entrySet()) {
@@ -378,7 +377,6 @@ public class ProviderServiceImpl extends AbstractService implements ProviderServ
                 if (app != null) ret.add(app);
             }
         }
-
         return ret;
     }
 

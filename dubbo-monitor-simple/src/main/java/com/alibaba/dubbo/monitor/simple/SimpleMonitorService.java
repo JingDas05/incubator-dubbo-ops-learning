@@ -96,6 +96,7 @@ public class SimpleMonitorService implements MonitorService {
         writeThread.setDaemon(true);
         writeThread.setName("DubboMonitorAsyncWriteLogThread");
         writeThread.start();
+        // 300秒画一张，改成30s画一张
         chartFuture = scheduledExecutorService.scheduleWithFixedDelay(new Runnable() {
             public void run() {
                 try {
@@ -104,7 +105,8 @@ public class SimpleMonitorService implements MonitorService {
                     logger.error("Unexpected error occur at draw stat chart, cause: " + t.getMessage(), t);
                 }
             }
-        }, 1, 300, TimeUnit.SECONDS);
+        }, 1, 30, TimeUnit.SECONDS);
+
         statisticsDirectory = ConfigUtils.getProperty("dubbo.statistics.directory");
         chartsDirectory = ConfigUtils.getProperty("dubbo.charts.directory");
     }

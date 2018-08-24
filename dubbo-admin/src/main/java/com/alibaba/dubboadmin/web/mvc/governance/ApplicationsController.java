@@ -123,14 +123,14 @@ public class ApplicationsController extends BaseController {
         if (consumerApplications != null && consumerApplications.size() > 0) {
             applications.addAll(consumerApplications);
         }
-
+        // 构建要返回的数据
         Set<String> newList = new HashSet<String>();
         Set<String> newProviders = new HashSet<String>();
         Set<String> newConsumers = new HashSet<String>();
         model.addAttribute("applications", applications);
         model.addAttribute("providerApplications", providerApplications);
         model.addAttribute("consumerApplications", consumerApplications);
-
+        // 根据keyword过滤服务
         if (StringUtils.isNotEmpty(keyword) && !"*".equals(keyword)) {
             keyword = keyword.toLowerCase();
             for (String o : applications) {
@@ -152,6 +152,7 @@ public class ApplicationsController extends BaseController {
             model.addAttribute("providerApplications", newProviders);
             model.addAttribute("consumerApplications", newConsumers);
         }
+        // 携带着model，跳转视图
         return "governance/screen/applications/index";
     }
 
